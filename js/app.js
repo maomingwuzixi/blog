@@ -380,7 +380,7 @@ function filterTodos() {
 function renderInterviews() {
     const tbody = document.getElementById('interviews-table');
     if (state.data.interviews.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;">暂无面试安排</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;">暂无面试安排</td></tr>';
     } else {
         tbody.innerHTML = state.data.interviews.map(i => `
             <tr>
@@ -390,6 +390,7 @@ function renderInterviews() {
                 <td>${i.interviewer}</td>
                 <td><span class="status status-${getStatusClass(i.status)}">${i.status}</span></td>
                 <td>
+                    ${i.status === '已通过' ? `<button class="btn btn-sm btn-success" onclick="convertToEmployee('${i.id}')">入职</button>` : ''}
                     <button class="btn btn-sm btn-secondary" onclick="editInterview('${i.id}')">编辑</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteInterview('${i.id}')">删除</button>
                 </td>
@@ -417,7 +418,7 @@ function deleteInterview(id) {
 function renderCandidates() {
     const tbody = document.getElementById('candidates-table');
     if (state.data.candidates.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;padding:40px;">暂无候选人</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;padding:40px;">暂无候选人</td></tr>';
     } else {
         tbody.innerHTML = state.data.candidates.map(c => `
             <tr>
@@ -427,6 +428,8 @@ function renderCandidates() {
                 <td><span class="status status-${getCandidateStatusClass(c.status)}">${c.status}</span></td>
                 <td>${c.createdAt}</td>
                 <td>
+                    ${c.status === '待筛选' || c.status === '初面通过' ? `<button class="btn btn-sm btn-primary" onclick="scheduleInterviewFromCandidate('${c.id}')">安排面试</button>` : ''}
+                    ${c.status === '终面通过' ? `<button class="btn btn-sm btn-success" onclick="convertCandidateToEmployee('${c.id}')">办理入职</button>` : ''}
                     <button class="btn btn-sm btn-secondary" onclick="editCandidate('${c.id}')">编辑</button>
                     <button class="btn btn-sm btn-danger" onclick="deleteCandidate('${c.id}')">删除</button>
                 </td>
@@ -524,50 +527,290 @@ function deleteContract(id) {
     }
 }
 
-// ==================== 文件管理 ====================
+// ==================== 文件管理（支持真实文件上传下载） ====================
 function renderFiles() {
     const grid = document.getElementById('files-grid');
     if (state.data.files.length === 0) {
         grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1;"><div class="icon">📁</div><h4>暂无文件</h4><p>点击上传文件按钮添加</p></div>';
     } else {
         grid.innerHTML = state.data.files.map(f => `
-            <div class="file-item" onclick="downloadFile('${f.id}')">
+            <div class="file-item" onclick="showFileDetail('${f.id}')">
                 <div class="file-icon">${getFileIcon(f.type)}</div>
                 <div class="file-name">${f.name}</div>
                 <div class="file-meta">${f.size} · ${f.date}</div>
+                <div class="file-actions" style="margin-top:8px;">
+                    <button class="btn btn-sm btn-primary" onclick="event.stopPropagation();downloadRealFile('${f.id}')">下载</button>
+                    <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteFile('${f.id}')">删除</button>
+                </div>
             </div>
         `).join('');
     }
 }
 
 function getFileIcon(type) {
-    const icons = { pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', ppt: '📽️', pptx: '📽️', jpg: '🖼️', png: '🖼️', zip: '📦' };
-    return icons[type] || '📄';
+    const icons = { 
+        pdf: '📄', doc: '📝', docx: '📝', xls: '📊', xlsx: '📊', 
+        ppt: '📽️', pptx: '📽️', jpg: '🖼️', jpeg: '🖼️', png: '🖼️', 
+        gif: '🖼️', zip: '📦', rar: '📦', txt: '📃', mp4: '🎬',
+        mp3: '🎵', docm: '📝', xlsm: '📊'
+    };
+    return icons[type.toLowerCase()] || '📄';
 }
 
-// ==================== 信息发布 ====================
+// 显示文件详情
+function showFileDetail(fileId) {
+    const file = state.data.files.find(f => f.id === fileId);
+    if (!file) return;
+    
+    const modal = {
+        title: '文件详情',
+        content: `
+            <div style="text-align:center;padding:20px;">
+                <div style="font-size:64px;margin-bottom:16px;">${getFileIcon(file.type)}</div>
+                <h3 style="margin-bottom:8px;">${file.name}</h3>
+                <p style="color:var(--text-light);margin-bottom:16px;">${file.desc || '暂无描述'}</p>
+                <div style="background:#f8fafc;padding:16px;border-radius:8px;text-align:left;">
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                        <span>文件大小:</span><span>${file.size}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                        <span>文件类型:</span><span>${file.type.toUpperCase()}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                        <span>上传日期:</span><span>${file.date}</span>
+                    </div>
+                    <div style="display:flex;justify-content:space-between;">
+                        <span>上传者:</span><span>${file.uploader || state.user.name}</span>
+                    </div>
+                </div>
+            </div>
+        `,
+        onConfirm: () => {
+            downloadRealFile(fileId);
+            closeModal();
+        }
+    };
+    openEditModal(modal);
+}
+
+// 真实文件下载（使用Base64存储）
+function downloadRealFile(fileId) {
+    const file = state.data.files.find(f => f.id === fileId);
+    if (!file) {
+        showToast('文件不存在', 'error');
+        return;
+    }
+    
+    if (!file.content) {
+        showToast('该文件没有可下载内容', 'error');
+        return;
+    }
+    
+    // 从Base64解码并下载
+    try {
+        const byteString = atob(file.content.split(',')[1] || file.content);
+        const mimeType = file.mimeType || 'application/octet-stream';
+        const ab = new ArrayBuffer(byteString.length);
+        const ia = new Uint8Array(ab);
+        
+        for (let i = 0; i < byteString.length; i++) {
+            ia[i] = byteString.charCodeAt(i);
+        }
+        
+        const blob = new Blob([ab], { type: mimeType });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = file.name;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        showToast('文件下载已开始', 'success');
+    } catch (e) {
+        console.error('下载失败:', e);
+        showToast('文件下载失败', 'error');
+    }
+}
+
+// 删除文件
+function deleteFile(fileId) {
+    if (confirm('确定删除此文件？')) {
+        localDB.deleteItem('files', fileId);
+        state.data.files = localDB.get('files');
+        renderFiles();
+        showToast('文件已删除', 'success');
+    }
+}
+
+// ==================== 信息发布（增强版） ====================
 function renderAnnouncements() {
     const list = document.getElementById('announcements-list');
     if (state.data.announcements.length === 0) {
         list.innerHTML = '<div class="empty-state"><div class="icon">📢</div><h4>暂无公告</h4></div>';
     } else {
-        list.innerHTML = state.data.announcements.map(a => `
-            <div class="card" style="margin-bottom:16px;">
+        // 按时间倒序排列
+        const sorted = [...state.data.announcements].sort((a, b) => new Date(b.date) - new Date(a.date));
+        
+        list.innerHTML = sorted.map(a => {
+            // 处理内容摘要
+            const contentPreview = a.content ? (a.content.length > 100 ? a.content.substring(0, 100) + '...' : a.content) : '';
+            const hasFullContent = a.content && a.content.length > 100;
+            
+            // 根据类型显示不同颜色标签
+            const typeColors = {
+                '通知': '#3b82f6',
+                '公告': '#10b981', 
+                '制度': '#f59e0b',
+                '活动': '#8b5cf6',
+                '紧急': '#ef4444'
+            };
+            const typeColor = typeColors[a.type] || '#6b7280';
+            
+            return `
+            <div class="card announcement-card" style="margin-bottom:16px;cursor:pointer;transition:all 0.2s;" onclick="showAnnouncementDetail('${a.id}')">
                 <div class="card-body">
-                    <div style="display:flex;justify-content:space-between;align-items:start;">
-                        <div>
-                            <h4 style="margin-bottom:8px;">${a.title}</h4>
-                            <p style="color:var(--text-light);font-size:13px;">${a.content}</p>
-                            <div style="margin-top:12px;font-size:12px;color:var(--text-light);">
-                                发布于 ${a.date} · ${a.author}
+                    <div style="display:flex;justify-content:space-between;align-items:start;gap:16px;">
+                        <div style="flex:1;">
+                            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+                                <span class="announcement-type" style="background:${typeColor}20;color:${typeColor};padding:2px 8px;border-radius:4px;font-size:12px;font-weight:500;">${a.type || '通知'}</span>
+                                ${a.isImportant ? '<span style="color:#ef4444;">🔴</span>' : ''}
+                                ${a.isTop ? '<span style="color:#f59e0b;">📌</span>' : ''}
+                            </div>
+                            <h4 style="margin-bottom:8px;font-size:16px;">${a.title}</h4>
+                            <p style="color:var(--text-light);font-size:14px;line-height:1.6;">${contentPreview}</p>
+                            ${hasFullContent ? '<span style="color:#3b82f6;font-size:13px;">点击查看详情 →</span>' : ''}
+                            <div style="margin-top:12px;font-size:12px;color:var(--text-light);display:flex;gap:16px;">
+                                <span>📅 ${a.date}</span>
+                                <span>👤 ${a.author}</span>
+                                ${a.department ? `<span>🏢 ${a.department}</span>` : ''}
+                                ${a.readCount ? `<span>👁️ ${a.readCount} 次阅读</span>` : ''}
                             </div>
                         </div>
-                        <button class="btn btn-sm btn-danger" onclick="deleteAnnouncement('${a.id}')">删除</button>
+                        <div style="display:flex;flex-direction:column;gap:8px;">
+                            <button class="btn btn-sm btn-secondary" onclick="event.stopPropagation();editAnnouncement('${a.id}')">编辑</button>
+                            <button class="btn btn-sm btn-danger" onclick="event.stopPropagation();deleteAnnouncement('${a.id}')">删除</button>
+                        </div>
                     </div>
                 </div>
             </div>
-        `).join('');
+        `}).join('');
     }
+}
+
+// 显示公告详情
+function showAnnouncementDetail(id) {
+    const a = state.data.announcements.find(item => item.id === id);
+    if (!a) return;
+    
+    // 增加阅读次数
+    if (!a.readCount) a.readCount = 0;
+    a.readCount++;
+    localDB.update('announcements', id, { readCount: a.readCount });
+    
+    const typeColors = {
+        '通知': '#3b82f6',
+        '公告': '#10b981', 
+        '制度': '#f59e0b',
+        '活动': '#8b5cf6',
+        '紧急': '#ef4444'
+    };
+    const typeColor = typeColors[a.type] || '#6b7280';
+    
+    const modal = {
+        title: '',
+        content: `
+            <div style="max-height:60vh;overflow-y:auto;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+                    <span style="background:${typeColor}20;color:${typeColor};padding:4px 12px;border-radius:4px;font-size:13px;font-weight:500;">${a.type || '通知'}</span>
+                    ${a.isImportant ? '<span style="background:#fef2f2;color:#dc2626;padding:4px 12px;border-radius:4px;font-size:13px;">🔴 重要</span>' : ''}
+                    ${a.isTop ? '<span style="background:#fffbeb;color:#d97706;padding:4px 12px;border-radius:4px;font-size:13px;">📌 置顶</span>' : ''}
+                </div>
+                <h2 style="margin-bottom:16px;font-size:20px;">${a.title}</h2>
+                <div style="display:flex;gap:16px;margin-bottom:20px;font-size:13px;color:var(--text-light);padding-bottom:16px;border-bottom:1px solid #e5e7eb;">
+                    <span>📅 发布时间：${a.date}</span>
+                    <span>👤 发布人：${a.author}</span>
+                    ${a.department ? `<span>🏢 ${a.department}</span>` : ''}
+                    <span>👁️ ${a.readCount || 1} 次阅读</span>
+                </div>
+                <div style="line-height:1.8;color:#374151;white-space:pre-wrap;">${a.content || '暂无内容'}</div>
+                ${a.attachments ? `
+                <div style="margin-top:24px;padding-top:16px;border-top:1px solid #e5e7eb;">
+                    <h4 style="margin-bottom:12px;font-size:14px;">📎 附件</h4>
+                    <div style="display:flex;flex-direction:column;gap:8px;">
+                        ${a.attachments.map(att => `
+                            <div style="display:flex;align-items:center;gap:8px;padding:8px 12px;background:#f8fafc;border-radius:6px;">
+                                <span>${getFileIcon(att.type)}</span>
+                                <span style="flex:1;">${att.name}</span>
+                                <button class="btn btn-sm btn-primary" onclick="downloadAttachment('${att.id}')">下载</button>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+                ` : ''}
+            </div>
+        `,
+        onConfirm: () => closeModal()
+    };
+    openEditModal(modal);
+}
+
+// 编辑公告
+function editAnnouncement(id) {
+    const a = state.data.announcements.find(item => item.id === id);
+    if (!a) return;
+    
+    const modal = {
+        title: '编辑公告',
+        content: `
+            <input type="hidden" id="edit-announcement-id" value="${id}">
+            <div class="form-group"><label>标题</label><input type="text" id="announce-title" value="${a.title}"></div>
+            <div class="form-row">
+                <div class="form-group"><label>类型</label>
+                    <select id="announce-type">
+                        <option ${a.type === '通知' ? 'selected' : ''}>通知</option>
+                        <option ${a.type === '公告' ? 'selected' : ''}>公告</option>
+                        <option ${a.type === '制度' ? 'selected' : ''}>制度</option>
+                        <option ${a.type === '活动' ? 'selected' : ''}>活动</option>
+                        <option ${a.type === '紧急' ? 'selected' : ''}>紧急</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>发布部门</label><input type="text" id="announce-dept" value="${a.department || '人力资源部'}"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;">
+                    <input type="checkbox" id="announce-important" ${a.isImportant ? 'checked' : ''}>
+                    <label for="announce-important" style="margin:0;">标记为重要</label>
+                </div>
+                <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;">
+                    <input type="checkbox" id="announce-top" ${a.isTop ? 'checked' : ''}>
+                    <label for="announce-top" style="margin:0;">置顶显示</label>
+                </div>
+            </div>
+            <div class="form-group"><label>内容</label><textarea id="announce-content" rows="6" placeholder="请输入公告内容...">${a.content || ''}</textarea></div>
+        `,
+        onConfirm: () => {
+            const updates = {
+                title: document.getElementById('announce-title').value,
+                type: document.getElementById('announce-type').value,
+                department: document.getElementById('announce-dept').value,
+                content: document.getElementById('announce-content').value,
+                isImportant: document.getElementById('announce-important').checked,
+                isTop: document.getElementById('announce-top').checked,
+                updatedAt: new Date().toISOString()
+            };
+            
+            if (!updates.title || !updates.content) { showToast('请填写完整信息', 'error'); return; }
+            
+            localDB.update('announcements', id, updates);
+            state.data.announcements = localDB.get('announcements');
+            renderAnnouncements();
+            closeModal();
+            showToast('公告已更新', 'success');
+        }
+    };
+    openEditModal(modal);
 }
 
 function deleteAnnouncement(id) {
@@ -579,53 +822,91 @@ function deleteAnnouncement(id) {
     }
 }
 
-// ==================== 表单自动化 ====================
+// ==================== 表单自动化（与台账数据联动） ====================
 function generateForm(type) {
+    const today = new Date().toISOString().split('T')[0];
+    const currentMonth = new Date().toISOString().slice(0, 7);
+    
+    // 根据实际数据生成表单
     const forms = {
         onboarding: { 
             name: '入职登记表', 
-            headers: ['姓名', '性别', '部门', '职位', '入职日期', '联系方式', '身份证号', '紧急联系人', '学历', '毕业院校'],
-            sample: ['张三', '男', '技术部', '前端工程师', '2024-03-20', '13800138000', '110101199001011234', '李四 13900139000', '本科', '北京大学']
+            headers: ['工号', '姓名', '性别', '部门', '职位', '入职日期', '联系方式', '身份证号', '紧急联系人', '学历', '毕业院校', '状态'],
+            getData: () => state.data.employees.map(e => [e.id, e.name, e.gender || '', e.dept, e.position, e.hireDate, e.phone || '', e.idcard || '', e.emergency || '', e.education || '', e.school || '', e.status])
         },
         resignation: { 
             name: '离职交接表', 
-            headers: ['姓名', '部门', '职位', '入职日期', '离职日期', '离职原因', '工作交接情况', '物品归还', '财务结算', '直属领导签字'],
-            sample: ['王五', '市场部', '市场专员', '2023-06-01', '2024-03-15', '个人发展', '已交接', '已归还', '已结清', '']
+            headers: ['工号', '姓名', '部门', '职位', '入职日期', '离职日期', '离职原因', '工作交接情况', '物品归还', '财务结算', '合同状态'],
+            getData: () => state.data.employees
+                .filter(e => e.status === '已离职')
+                .map(e => [e.id, e.name, e.dept, e.position, e.hireDate, e.leaveDate || '', e.leaveReason || '', '', '', '', '已解除'])
         },
         attendance: { 
             name: '考勤汇总表', 
-            headers: ['姓名', '部门', '月份', '应出勤天数', '实出勤天数', '迟到次数', '早退次数', '请假天数', '加班时长', '备注'],
-            sample: ['全员', '全部门', '2024-03', '21', '20', '1', '0', '1', '8h', '']
+            headers: ['工号', '姓名', '部门', '月份', '应出勤天数', '实出勤天数', '迟到次数', '早退次数', '请假天数', '加班时长', '备注'],
+            getData: () => state.data.employees.map(e => [e.id, e.name, e.dept, currentMonth, '21', '20', '0', '0', '0', '0', ''])
         },
         offer: { 
             name: 'Offer录用函', 
-            headers: ['候选人姓名', '应聘岗位', '部门', '入职日期', '试用期', '转正薪资', '试用期薪资', 'Offer有效期', 'HR联系人', '联系电话'],
-            sample: ['赵六', 'Java开发工程师', '技术部', '2024-04-01', '3个月', '15000', '12000', '2024-03-25', '吴梓锡', '010-12345678']
+            headers: ['候选人姓名', '应聘岗位', '部门', '入职日期', '试用期', '转正薪资', '试用期薪资', 'Offer有效期', 'HR联系人', '联系电话', '状态'],
+            getData: () => state.data.candidates
+                .filter(c => c.status === '终面通过' || c.status === 'Offer已发')
+                .map(c => [c.name, c.position, '', today, '3个月', '', '', '', state.user.name, '', c.status])
         },
         payslip: { 
             name: '工资条', 
-            headers: ['姓名', '工号', '月份', '基本工资', '岗位津贴', '绩效奖金', '加班费', '社保扣款', '公积金', '个税', '实发工资'],
-            sample: ['张三', 'E001', '2024-03', '8000', '2000', '3000', '500', '800', '1200', '450', '11050']
+            headers: ['工号', '姓名', '部门', '月份', '基本工资', '岗位津贴', '绩效奖金', '加班费', '社保扣款', '公积金', '个税', '实发工资'],
+            getData: () => state.data.employees
+                .filter(e => e.status === '在职' || e.status === '试用期')
+                .map(e => [e.id, e.name, e.dept, currentMonth, e.baseSalary || '8000', e.allowance || '2000', e.bonus || '0', '0', '800', '1200', '0', ''])
         },
         evaluation: { 
             name: '绩效评估表', 
-            headers: ['姓名', '部门', '评估周期', 'KPI完成率', '工作质量', '团队协作', '创新能力', '综合得分', '等级', '改进建议'],
-            sample: ['张三', '技术部', '2024Q1', '95%', '90', '88', '85', '89.5', 'A', '继续保持']
+            headers: ['工号', '姓名', '部门', '职位', '评估周期', 'KPI完成率', '工作质量', '团队协作', '创新能力', '综合得分', '等级', '改进建议'],
+            getData: () => state.data.employees
+                .filter(e => e.status === '在职' || e.status === '试用期')
+                .map(e => [e.id, e.name, e.dept, e.position, currentMonth, '', '', '', '', '', '', ''])
+        },
+        contract: {
+            name: '合同台账表',
+            headers: ['合同编号', '员工姓名', '工号', '合同类型', '开始日期', '结束日期', '剩余天数', '状态', '备注'],
+            getData: () => {
+                const today = new Date();
+                return state.data.contracts.map(c => {
+                    const end = new Date(c.endDate);
+                    const diff = Math.ceil((end - today) / (1000 * 60 * 60 * 24));
+                    const daysLeft = diff >= 0 ? diff + ' 天' : '已过期';
+                    return [c.id, c.employeeName, c.employeeId || '', c.type, c.startDate, c.endDate, daysLeft, c.status, ''];
+                });
+            }
         }
     };
     
     const form = forms[type];
+    if (!form) { showToast('未知表单类型', 'error'); return; }
+    
     showToast(`正在生成 ${form.name}...`, 'info');
     
     setTimeout(() => {
+        // 获取实际数据
+        const data = form.getData();
+        
         // 生成 CSV 格式（Excel 可直接打开）
         const BOM = '\uFEFF'; // UTF-8 BOM
         const headers = form.headers.join(',');
-        const sample = form.sample.map(v => `"${v}"`).join(',');
-        const csvContent = BOM + headers + '\n' + sample + '\n';
         
-        downloadFileContent(`${form.name}_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
-        showToast(`${form.name} 已生成（Excel可直接打开）`, 'success');
+        let csvContent;
+        if (data.length === 0) {
+            // 没有数据时生成表头
+            csvContent = BOM + headers + '\n';
+        } else {
+            // 有数据时生成完整表格
+            const rows = data.map(row => row.map(v => `"${v}"`).join(',')).join('\n');
+            csvContent = BOM + headers + '\n' + rows + '\n';
+        }
+        
+        downloadFileContent(`${form.name}_${today}.csv`, csvContent);
+        showToast(`${form.name} 已生成，包含 ${data.length} 条记录`, 'success');
     }, 500);
 }
 
@@ -805,18 +1086,50 @@ const modals = {
         title: '发布信息',
         content: `
             <div class="form-group"><label>标题</label><input type="text" id="announce-title" placeholder="公告标题"></div>
-            <div class="form-group"><label>内容</label><textarea id="announce-content" rows="4" placeholder="公告内容"></textarea></div>
+            <div class="form-row">
+                <div class="form-group"><label>类型</label>
+                    <select id="announce-type">
+                        <option>通知</option>
+                        <option>公告</option>
+                        <option>制度</option>
+                        <option>活动</option>
+                        <option>紧急</option>
+                    </select>
+                </div>
+                <div class="form-group"><label>发布部门</label><input type="text" id="announce-dept" value="人力资源部"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;">
+                    <input type="checkbox" id="announce-important">
+                    <label for="announce-important" style="margin:0;">标记为重要</label>
+                </div>
+                <div class="form-group" style="flex-direction:row;align-items:center;gap:8px;">
+                    <input type="checkbox" id="announce-top">
+                    <label for="announce-top" style="margin:0;">置顶显示</label>
+                </div>
+            </div>
+            <div class="form-group"><label>内容</label><textarea id="announce-content" rows="6" placeholder="请输入公告内容..."></textarea></div>
         `,
         onConfirm: () => {
             const title = document.getElementById('announce-title').value;
             const content = document.getElementById('announce-content').value;
+            const type = document.getElementById('announce-type').value;
+            const department = document.getElementById('announce-dept').value;
+            const isImportant = document.getElementById('announce-important').checked;
+            const isTop = document.getElementById('announce-top').checked;
+            
             if (!title || !content) { showToast('请填写完整信息', 'error'); return; }
             
             localDB.add('announcements', { 
                 title, 
                 content, 
+                type,
+                department,
+                isImportant,
+                isTop,
                 author: state.user.name,
-                date: new Date().toISOString().split('T')[0] 
+                date: new Date().toISOString().split('T')[0],
+                readCount: 0
             });
             state.data.announcements = localDB.get('announcements');
             renderAnnouncements();
@@ -827,8 +1140,26 @@ const modals = {
     'upload-file': {
         title: '上传文件',
         content: `
-            <div class="form-group"><label>选择文件</label><input type="file" id="file-input"></div>
+            <div class="form-group"><label>选择文件</label><input type="file" id="file-input" onchange="previewFile()"></div>
+            <div id="file-preview" style="display:none;padding:12px;background:#f8fafc;border-radius:8px;margin-bottom:12px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <span id="preview-icon" style="font-size:32px;">📄</span>
+                    <div>
+                        <div id="preview-name" style="font-weight:600;"></div>
+                        <div id="preview-size" style="font-size:12px;color:var(--text-light);"></div>
+                    </div>
+                </div>
+            </div>
             <div class="form-group"><label>文件说明</label><input type="text" id="file-desc" placeholder="可选：添加文件说明"></div>
+            <div class="form-group">
+                <label>关联类型（可选）</label>
+                <select id="file-related-type">
+                    <option value="">无关联</option>
+                    <option value="employee">员工档案</option>
+                    <option value="contract">合同</option>
+                    <option value="candidate">候选人</option>
+                </select>
+            </div>
         `,
         onConfirm: () => {
             const fileInput = document.getElementById('file-input');
@@ -837,17 +1168,31 @@ const modals = {
             const file = fileInput.files[0];
             const ext = file.name.split('.').pop().toLowerCase();
             
-            localDB.add('files', {
-                name: file.name,
-                type: ext,
-                size: (file.size / 1024).toFixed(1) + ' KB',
-                date: new Date().toISOString().split('T')[0],
-                desc: document.getElementById('file-desc').value
-            });
-            state.data.files = localDB.get('files');
-            renderFiles();
-            closeModal();
-            showToast('文件已上传', 'success');
+            // 读取文件内容为Base64
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const fileData = {
+                    name: file.name,
+                    type: ext,
+                    mimeType: file.type,
+                    size: (file.size / 1024).toFixed(1) + ' KB',
+                    date: new Date().toISOString().split('T')[0],
+                    desc: document.getElementById('file-desc').value,
+                    uploader: state.user.name,
+                    content: e.target.result, // Base64编码的文件内容
+                    relatedType: document.getElementById('file-related-type').value
+                };
+                
+                localDB.add('files', fileData);
+                state.data.files = localDB.get('files');
+                renderFiles();
+                closeModal();
+                showToast('文件已上传', 'success');
+            };
+            reader.onerror = function() {
+                showToast('文件读取失败', 'error');
+            };
+            reader.readAsDataURL(file);
         }
     }
 };
@@ -1146,17 +1491,290 @@ function openEditModal(modal) {
     `;
 }
 
-// ==================== 文件下载 ====================
-function downloadFile(id) {
-    const file = state.data.files.find(f => f.id === id);
-    if (!file) {
-        showToast('文件不存在', 'error');
-        return;
+// 文件预览函数
+function previewFile() {
+    const fileInput = document.getElementById('file-input');
+    const previewDiv = document.getElementById('file-preview');
+    const previewIcon = document.getElementById('preview-icon');
+    const previewName = document.getElementById('preview-name');
+    const previewSize = document.getElementById('preview-size');
+    
+    if (fileInput.files && fileInput.files[0]) {
+        const file = fileInput.files[0];
+        const ext = file.name.split('.').pop().toLowerCase();
+        
+        previewDiv.style.display = 'block';
+        previewIcon.textContent = getFileIcon(ext);
+        previewName.textContent = file.name;
+        previewSize.textContent = (file.size / 1024).toFixed(1) + ' KB';
     }
-    // 创建一个模拟的文本文件下载
-    const content = `文件名称: ${file.name}\n文件类型: ${file.type}\n文件大小: ${file.size}\n上传日期: ${file.date}\n说明: ${file.desc || '无'}`;
-    downloadFileContent(file.name.replace(/\.[^.]+$/, '') + '_信息.txt', content);
-    showToast('文件信息已下载', 'success');
+}
+
+// 绑定到window
+window.previewFile = previewFile;
+window.showFileDetail = showFileDetail;
+window.downloadRealFile = downloadRealFile;
+window.deleteFile = deleteFile;
+window.showAnnouncementDetail = showAnnouncementDetail;
+window.editAnnouncement = editAnnouncement;
+
+// ==================== 全链路自动化功能 ====================
+
+// 从候选人安排面试
+function scheduleInterviewFromCandidate(candidateId) {
+    const candidate = state.data.candidates.find(c => c.id === candidateId);
+    if (!candidate) return;
+    
+    const modal = {
+        title: `为 ${candidate.name} 安排面试`,
+        content: `
+            <input type="hidden" id="link-candidate-id" value="${candidateId}">
+            <div class="form-group"><label>候选人</label><input type="text" value="${candidate.name}" disabled></div>
+            <div class="form-group"><label>应聘岗位</label><input type="text" id="interview-position" value="${candidate.position}"></div>
+            <div class="form-row">
+                <div class="form-group"><label>面试日期</label><input type="date" id="interview-date" value="${new Date().toISOString().split('T')[0]}"></div>
+                <div class="form-group"><label>面试时间</label><input type="time" id="interview-time" value="14:00"></div>
+            </div>
+            <div class="form-group"><label>面试官</label><input type="text" id="interview-interviewer" placeholder="输入面试官姓名"></div>
+            <div class="form-group"><label>面试轮次</label><select id="interview-round"><option>初面</option><option>终面</option></select></div>
+        `,
+        onConfirm: () => {
+            const date = document.getElementById('interview-date').value;
+            const time = document.getElementById('interview-time').value;
+            const interviewer = document.getElementById('interview-interviewer').value;
+            const position = document.getElementById('interview-position').value;
+            const round = document.getElementById('interview-round').value;
+            
+            if (!interviewer) { showToast('请输入面试官', 'error'); return; }
+            
+            // 创建面试记录
+            const interview = localDB.add('interviews', { 
+                candidateName: candidate.name, 
+                position: position, 
+                time: date + ' ' + time, 
+                interviewer: interviewer, 
+                status: '待进行',
+                round: round,
+                candidateId: candidateId
+            });
+            
+            // 更新候选人状态
+            localDB.update('candidates', candidateId, { 
+                status: round === '初面' ? '初面安排' : '终面安排',
+                interviewId: interview.id
+            });
+            
+            // 自动创建日程
+            localDB.add('schedules', {
+                title: `${candidate.name} ${round}面试`,
+                date: date,
+                time: time,
+                type: 'interview',
+                relatedId: interview.id,
+                relatedType: 'interview'
+            });
+            
+            // 自动创建待办
+            localDB.add('todos', {
+                title: `准备${candidate.name}的${round}面试`,
+                priority: 'high',
+                deadline: date,
+                completed: false,
+                relatedId: interview.id
+            });
+            
+            state.data.interviews = localDB.get('interviews');
+            state.data.candidates = localDB.get('candidates');
+            state.data.schedules = localDB.get('schedules');
+            state.data.todos = localDB.get('todos');
+            
+            renderInterviews();
+            renderCandidates();
+            renderCalendar();
+            renderScheduleList();
+            updateStats();
+            closeModal();
+            showToast(`已为 ${candidate.name} 安排${round}，并自动创建日程和待办`, 'success');
+        }
+    };
+    openEditModal(modal);
+}
+
+// 从面试记录直接办理入职
+function convertToEmployee(interviewId) {
+    const interview = state.data.interviews.find(i => i.id === interviewId);
+    if (!interview) return;
+    
+    // 查找关联的候选人
+    const candidate = state.data.candidates.find(c => c.name === interview.candidateName);
+    
+    const modal = {
+        title: `${interview.candidateName} 入职登记`,
+        content: `
+            <input type="hidden" id="link-interview-id" value="${interviewId}">
+            <input type="hidden" id="link-candidate-id" value="${candidate ? candidate.id : ''}">
+            <div class="form-row">
+                <div class="form-group"><label>工号</label><input type="text" id="emp-id" placeholder="如: E004"></div>
+                <div class="form-group"><label>姓名</label><input type="text" id="emp-name" value="${interview.candidateName}"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>部门</label><select id="emp-dept"><option>技术部</option><option>产品部</option><option>市场部</option><option>人事部</option><option>财务部</option></select></div>
+                <div class="form-group"><label>职位</label><input type="text" id="emp-position" value="${interview.position}"></div>
+            </div>
+            <div class="form-group"><label>入职日期</label><input type="date" id="emp-hire-date" value="${new Date().toISOString().split('T')[0]}"></div>
+            <div class="form-group"><label>联系方式</label><input type="text" id="emp-phone" placeholder="手机号码"></div>
+            <div class="form-group"><label>身份证号</label><input type="text" id="emp-idcard" placeholder="身份证号码"></div>
+        `,
+        onConfirm: () => {
+            const id = document.getElementById('emp-id').value;
+            const name = document.getElementById('emp-name').value;
+            const dept = document.getElementById('emp-dept').value;
+            const position = document.getElementById('emp-position').value;
+            const hireDate = document.getElementById('emp-hire-date').value;
+            const phone = document.getElementById('emp-phone').value;
+            const idcard = document.getElementById('emp-idcard').value;
+            
+            if (!id || !name) { showToast('请填写完整信息', 'error'); return; }
+            
+            // 创建员工记录
+            const employee = localDB.add('employees', { 
+                id, name, dept, position, hireDate, status: '试用期',
+                phone, idcard,
+                source: candidate ? candidate.source : '其他',
+                interviewId: interviewId
+            });
+            
+            // 更新面试状态
+            localDB.update('interviews', interviewId, { status: '已入职', employeeId: id });
+            
+            // 更新候选人状态
+            if (candidate) {
+                localDB.update('candidates', candidate.id, { status: '已入职', employeeId: id });
+            }
+            
+            // 自动创建合同记录
+            const contractEnd = new Date(hireDate);
+            contractEnd.setFullYear(contractEnd.getFullYear() + 3);
+            localDB.add('contracts', {
+                employeeName: name,
+                employeeId: id,
+                type: '劳动合同',
+                startDate: hireDate,
+                endDate: contractEnd.toISOString().split('T')[0],
+                status: '有效'
+            });
+            
+            // 自动创建入职日程
+            localDB.add('schedules', {
+                title: `${name} 入职办理`,
+                date: hireDate,
+                time: '09:00',
+                type: 'training',
+                relatedId: id,
+                relatedType: 'employee'
+            });
+            
+            // 刷新数据
+            state.data.employees = localDB.get('employees');
+            state.data.interviews = localDB.get('interviews');
+            state.data.candidates = localDB.get('candidates');
+            state.data.contracts = localDB.get('contracts');
+            state.data.schedules = localDB.get('schedules');
+            
+            renderEmployees();
+            renderInterviews();
+            renderCandidates();
+            renderContracts();
+            renderCalendar();
+            updateStats();
+            closeModal();
+            showToast(`${name} 已入职，合同和日程已自动创建`, 'success');
+        }
+    };
+    openEditModal(modal);
+}
+
+// 从候选人直接办理入职
+function convertCandidateToEmployee(candidateId) {
+    const candidate = state.data.candidates.find(c => c.id === candidateId);
+    if (!candidate) return;
+    
+    const modal = {
+        title: `${candidate.name} 入职登记`,
+        content: `
+            <input type="hidden" id="link-candidate-id" value="${candidateId}">
+            <div class="form-row">
+                <div class="form-group"><label>工号</label><input type="text" id="emp-id" placeholder="如: E004"></div>
+                <div class="form-group"><label>姓名</label><input type="text" id="emp-name" value="${candidate.name}"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>部门</label><select id="emp-dept"><option>技术部</option><option>产品部</option><option>市场部</option><option>人事部</option><option>财务部</option></select></div>
+                <div class="form-group"><label>职位</label><input type="text" id="emp-position" value="${candidate.position}"></div>
+            </div>
+            <div class="form-group"><label>入职日期</label><input type="date" id="emp-hire-date" value="${new Date().toISOString().split('T')[0]}"></div>
+            <div class="form-group"><label>联系方式</label><input type="text" id="emp-phone" placeholder="手机号码"></div>
+            <div class="form-group"><label>身份证号</label><input type="text" id="emp-idcard" placeholder="身份证号码"></div>
+        `,
+        onConfirm: () => {
+            const id = document.getElementById('emp-id').value;
+            const name = document.getElementById('emp-name').value;
+            const dept = document.getElementById('emp-dept').value;
+            const position = document.getElementById('emp-position').value;
+            const hireDate = document.getElementById('emp-hire-date').value;
+            const phone = document.getElementById('emp-phone').value;
+            const idcard = document.getElementById('emp-idcard').value;
+            
+            if (!id || !name) { showToast('请填写完整信息', 'error'); return; }
+            
+            // 创建员工记录
+            localDB.add('employees', { 
+                id, name, dept, position, hireDate, status: '试用期',
+                phone, idcard,
+                source: candidate.source,
+                candidateId: candidateId
+            });
+            
+            // 更新候选人状态
+            localDB.update('candidates', candidateId, { status: '已入职', employeeId: id });
+            
+            // 自动创建合同记录
+            const contractEnd = new Date(hireDate);
+            contractEnd.setFullYear(contractEnd.getFullYear() + 3);
+            localDB.add('contracts', {
+                employeeName: name,
+                employeeId: id,
+                type: '劳动合同',
+                startDate: hireDate,
+                endDate: contractEnd.toISOString().split('T')[0],
+                status: '有效'
+            });
+            
+            // 自动创建入职日程
+            localDB.add('schedules', {
+                title: `${name} 入职办理`,
+                date: hireDate,
+                time: '09:00',
+                type: 'training',
+                relatedId: id,
+                relatedType: 'employee'
+            });
+            
+            // 刷新数据
+            state.data.employees = localDB.get('employees');
+            state.data.candidates = localDB.get('candidates');
+            state.data.contracts = localDB.get('contracts');
+            state.data.schedules = localDB.get('schedules');
+            
+            renderEmployees();
+            renderCandidates();
+            renderContracts();
+            renderCalendar();
+            updateStats();
+            closeModal();
+            showToast(`${name} 已入职，合同和日程已自动创建`, 'success');
+        }
+    };
+    openEditModal(modal);
 }
 
 // 绑定到 window
@@ -1165,3 +1783,6 @@ window.editCandidate = editCandidate;
 window.editEmployee = editEmployee;
 window.editContract = editContract;
 window.downloadFile = downloadFile;
+window.scheduleInterviewFromCandidate = scheduleInterviewFromCandidate;
+window.convertToEmployee = convertToEmployee;
+window.convertCandidateToEmployee = convertCandidateToEmployee;
