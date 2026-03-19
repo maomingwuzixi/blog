@@ -72,11 +72,20 @@ const db = {
 // 本地存储（离线备用）
 const localDB = {
     get(key) {
-        const data = localStorage.getItem(`hr_${key}`);
-        return data ? JSON.parse(data) : [];
+        try {
+            const data = localStorage.getItem(`hr_${key}`);
+            return data ? JSON.parse(data) : [];
+        } catch (e) {
+            console.error('localDB.get error:', e);
+            return [];
+        }
     },
     set(key, data) {
-        localStorage.setItem(`hr_${key}`, JSON.stringify(data));
+        try {
+            localStorage.setItem(`hr_${key}`, JSON.stringify(data));
+        } catch (e) {
+            console.error('localDB.set error:', e);
+        }
     },
     add(key, item) {
         const data = this.get(key);
@@ -96,7 +105,7 @@ const localDB = {
         }
         return null;
     },
-    delete(key, id) {
+    deleteItem(key, id) {
         const data = this.get(key);
         const filtered = data.filter(i => i.id !== id);
         this.set(key, filtered);

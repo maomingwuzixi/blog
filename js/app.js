@@ -303,6 +303,18 @@ function getTypeText(type) {
     return map[type] || '其他';
 }
 
+function deleteSchedule(id) {
+    if (confirm('确定删除此日程？')) {
+        localDB.deleteItem('schedules', id);
+        state.data.schedules = localDB.get('schedules');
+        renderCalendar();
+        renderScheduleList();
+        renderDashboard();
+        updateStats();
+        showToast('已删除', 'success');
+    }
+}
+
 // ==================== 待办事项 ====================
 function renderTodos() {
     const filterStatus = document.getElementById('todo-filter-status')?.value || '';
@@ -346,7 +358,7 @@ function toggleTodo(id) {
 
 function deleteTodo(id) {
     if (confirm('确定删除此待办？')) {
-        localDB.delete('todos', id);
+        localDB.deleteItem('todos', id);
         state.data.todos = localDB.get('todos');
         updateStats();
         renderTodos();
@@ -393,7 +405,7 @@ function getStatusClass(status) {
 
 function deleteInterview(id) {
     if (confirm('确定删除此面试安排？')) {
-        localDB.delete('interviews', id);
+        localDB.deleteItem('interviews', id);
         state.data.interviews = localDB.get('interviews');
         renderInterviews();
         updateStats();
@@ -430,7 +442,7 @@ function getCandidateStatusClass(status) {
 
 function deleteCandidate(id) {
     if (confirm('确定删除此候选人？')) {
-        localDB.delete('candidates', id);
+        localDB.deleteItem('candidates', id);
         state.data.candidates = localDB.get('candidates');
         renderCandidates();
         showToast('已删除', 'success');
@@ -462,7 +474,7 @@ function renderEmployees() {
 
 function deleteEmployee(id) {
     if (confirm('确定删除此员工？')) {
-        localDB.delete('employees', id);
+        localDB.deleteItem('employees', id);
         state.data.employees = localDB.get('employees');
         renderEmployees();
         updateStats();
@@ -504,7 +516,7 @@ function renderContracts() {
 
 function deleteContract(id) {
     if (confirm('确定删除此合同？')) {
-        localDB.delete('contracts', id);
+        localDB.deleteItem('contracts', id);
         state.data.contracts = localDB.get('contracts');
         renderContracts();
         updateStats();
@@ -560,7 +572,7 @@ function renderAnnouncements() {
 
 function deleteAnnouncement(id) {
     if (confirm('确定删除此公告？')) {
-        localDB.delete('announcements', id);
+        localDB.deleteItem('announcements', id);
         state.data.announcements = localDB.get('announcements');
         renderAnnouncements();
         showToast('已删除', 'success');
@@ -570,23 +582,51 @@ function deleteAnnouncement(id) {
 // ==================== 表单自动化 ====================
 function generateForm(type) {
     const forms = {
-        onboarding: { name: '入职登记表', fields: ['姓名', '部门', '职位', '入职日期', '联系方式'] },
-        resignation: { name: '离职交接表', fields: ['姓名', '部门', '离职日期', '交接事项', '离职原因'] },
-        attendance: { name: '考勤汇总表', fields: ['月份', '部门', '应出勤', '实出勤', '迟到次数'] },
-        offer: { name: 'Offer录用函', fields: ['候选人', '岗位', '薪资', '入职日期', '有效期'] },
-        payslip: { name: '工资条', fields: ['姓名', '基本工资', '绩效', '社保', '实发'] },
-        evaluation: { name: '绩效评估表', fields: ['姓名', '评估周期', 'KPI得分', '360评价', '等级'] }
+        onboarding: { 
+            name: '入职登记表', 
+            headers: ['姓名', '性别', '部门', '职位', '入职日期', '联系方式', '身份证号', '紧急联系人', '学历', '毕业院校'],
+            sample: ['张三', '男', '技术部', '前端工程师', '2024-03-20', '13800138000', '110101199001011234', '李四 13900139000', '本科', '北京大学']
+        },
+        resignation: { 
+            name: '离职交接表', 
+            headers: ['姓名', '部门', '职位', '入职日期', '离职日期', '离职原因', '工作交接情况', '物品归还', '财务结算', '直属领导签字'],
+            sample: ['王五', '市场部', '市场专员', '2023-06-01', '2024-03-15', '个人发展', '已交接', '已归还', '已结清', '']
+        },
+        attendance: { 
+            name: '考勤汇总表', 
+            headers: ['姓名', '部门', '月份', '应出勤天数', '实出勤天数', '迟到次数', '早退次数', '请假天数', '加班时长', '备注'],
+            sample: ['全员', '全部门', '2024-03', '21', '20', '1', '0', '1', '8h', '']
+        },
+        offer: { 
+            name: 'Offer录用函', 
+            headers: ['候选人姓名', '应聘岗位', '部门', '入职日期', '试用期', '转正薪资', '试用期薪资', 'Offer有效期', 'HR联系人', '联系电话'],
+            sample: ['赵六', 'Java开发工程师', '技术部', '2024-04-01', '3个月', '15000', '12000', '2024-03-25', '吴梓锡', '010-12345678']
+        },
+        payslip: { 
+            name: '工资条', 
+            headers: ['姓名', '工号', '月份', '基本工资', '岗位津贴', '绩效奖金', '加班费', '社保扣款', '公积金', '个税', '实发工资'],
+            sample: ['张三', 'E001', '2024-03', '8000', '2000', '3000', '500', '800', '1200', '450', '11050']
+        },
+        evaluation: { 
+            name: '绩效评估表', 
+            headers: ['姓名', '部门', '评估周期', 'KPI完成率', '工作质量', '团队协作', '创新能力', '综合得分', '等级', '改进建议'],
+            sample: ['张三', '技术部', '2024Q1', '95%', '90', '88', '85', '89.5', 'A', '继续保持']
+        }
     };
     
     const form = forms[type];
     showToast(`正在生成 ${form.name}...`, 'info');
     
-    // 模拟生成下载
     setTimeout(() => {
-        const content = form.fields.join('\t') + '\n' + form.fields.map(() => '[数据]').join('\t');
-        downloadFileContent(`${form.name}_${new Date().toISOString().split('T')[0]}.txt`, content);
-        showToast(`${form.name} 已生成并下载`, 'success');
-    }, 800);
+        // 生成 CSV 格式（Excel 可直接打开）
+        const BOM = '\uFEFF'; // UTF-8 BOM
+        const headers = form.headers.join(',');
+        const sample = form.sample.map(v => `"${v}"`).join(',');
+        const csvContent = BOM + headers + '\n' + sample + '\n';
+        
+        downloadFileContent(`${form.name}_${new Date().toISOString().split('T')[0]}.csv`, csvContent);
+        showToast(`${form.name} 已生成（Excel可直接打开）`, 'success');
+    }, 500);
 }
 
 function downloadFileContent(filename, content) {
@@ -940,8 +980,188 @@ window.showDayEvents = showDayEvents;
 window.generateForm = generateForm;
 window.globalSearch = globalSearch;
 window.quickAction = quickAction;
-window.editInterview = (id) => showToast('编辑功能开发中', 'info');
-window.editCandidate = (id) => showToast('编辑功能开发中', 'info');
-window.editEmployee = (id) => showToast('编辑功能开发中', 'info');
-window.editContract = (id) => showToast('编辑功能开发中', 'info');
-window.downloadFile = (id) => showToast('下载功能开发中', 'info');
+// ==================== 编辑功能 ====================
+function editInterview(id) {
+    const item = state.data.interviews.find(i => i.id === id);
+    if (!item) return;
+    const [date, time] = item.time.split(' ');
+    
+    const modal = {
+        title: '编辑面试',
+        content: `
+            <input type="hidden" id="edit-id" value="${id}">
+            <div class="form-group"><label>候选人姓名</label><input type="text" id="interview-candidate" value="${item.candidateName}"></div>
+            <div class="form-group"><label>应聘岗位</label><input type="text" id="interview-position" value="${item.position}"></div>
+            <div class="form-row">
+                <div class="form-group"><label>面试日期</label><input type="date" id="interview-date" value="${date}"></div>
+                <div class="form-group"><label>面试时间</label><input type="time" id="interview-time" value="${time || '14:00'}"></div>
+            </div>
+            <div class="form-group"><label>面试官</label><input type="text" id="interview-interviewer" value="${item.interviewer}"></div>
+            <div class="form-group"><label>状态</label><select id="interview-status"><option>待进行</option><option>已通过</option><option>未通过</option><option>已取消</option></select></div>
+        `,
+        onConfirm: () => {
+            const updates = {
+                candidateName: document.getElementById('interview-candidate').value,
+                position: document.getElementById('interview-position').value,
+                time: document.getElementById('interview-date').value + ' ' + document.getElementById('interview-time').value,
+                interviewer: document.getElementById('interview-interviewer').value,
+                status: document.getElementById('interview-status').value
+            };
+            localDB.update('interviews', id, updates);
+            state.data.interviews = localDB.get('interviews');
+            renderInterviews();
+            updateStats();
+            closeModal();
+            showToast('面试已更新', 'success');
+        }
+    };
+    openEditModal(modal);
+}
+
+function editCandidate(id) {
+    const item = state.data.candidates.find(c => c.id === id);
+    if (!item) return;
+    
+    const modal = {
+        title: '编辑候选人',
+        content: `
+            <input type="hidden" id="edit-id" value="${id}">
+            <div class="form-group"><label>姓名</label><input type="text" id="candidate-name" value="${item.name}"></div>
+            <div class="form-group"><label>应聘岗位</label><input type="text" id="candidate-position" value="${item.position}"></div>
+            <div class="form-row">
+                <div class="form-group"><label>来源渠道</label><select id="candidate-source"><option>BOSS直聘</option><option>猎聘</option><option>智联</option><option>内部推荐</option><option>其他</option></select></div>
+                <div class="form-group"><label>当前状态</label><select id="candidate-status"><option>待筛选</option><option>初面通过</option><option>终面通过</option><option>Offer已发</option><option>已入职</option><option>淘汰</option></select></div>
+            </div>
+        `,
+        onConfirm: () => {
+            const updates = {
+                name: document.getElementById('candidate-name').value,
+                position: document.getElementById('candidate-position').value,
+                source: document.getElementById('candidate-source').value,
+                status: document.getElementById('candidate-status').value
+            };
+            localDB.update('candidates', id, updates);
+            state.data.candidates = localDB.get('candidates');
+            renderCandidates();
+            closeModal();
+            showToast('候选人已更新', 'success');
+        }
+    };
+    openEditModal(modal);
+}
+
+function editEmployee(id) {
+    const item = state.data.employees.find(e => e.id === id);
+    if (!item) return;
+    
+    const modal = {
+        title: '编辑员工信息',
+        content: `
+            <input type="hidden" id="edit-id" value="${id}">
+            <div class="form-row">
+                <div class="form-group"><label>工号</label><input type="text" id="emp-id" value="${item.id}"></div>
+                <div class="form-group"><label>姓名</label><input type="text" id="emp-name" value="${item.name}"></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>部门</label><select id="emp-dept"><option>技术部</option><option>产品部</option><option>市场部</option><option>人事部</option><option>财务部</option></select></div>
+                <div class="form-group"><label>职位</label><input type="text" id="emp-position" value="${item.position}"></div>
+            </div>
+            <div class="form-group"><label>入职日期</label><input type="date" id="emp-hire-date" value="${item.hireDate}"></div>
+            <div class="form-group"><label>状态</label><select id="emp-status"><option>在职</option><option>试用期</option><option>已离职</option></select></div>
+        `,
+        onConfirm: () => {
+            const updates = {
+                id: document.getElementById('emp-id').value,
+                name: document.getElementById('emp-name').value,
+                dept: document.getElementById('emp-dept').value,
+                position: document.getElementById('emp-position').value,
+                hireDate: document.getElementById('emp-hire-date').value,
+                status: document.getElementById('emp-status').value
+            };
+            localDB.update('employees', id, updates);
+            state.data.employees = localDB.get('employees');
+            renderEmployees();
+            updateStats();
+            closeModal();
+            showToast('员工信息已更新', 'success');
+        }
+    };
+    openEditModal(modal);
+}
+
+function editContract(id) {
+    const item = state.data.contracts.find(c => c.id === id);
+    if (!item) return;
+    
+    const modal = {
+        title: '编辑合同',
+        content: `
+            <input type="hidden" id="edit-id" value="${id}">
+            <div class="form-group"><label>员工姓名</label><input type="text" id="contract-emp" value="${item.employeeName}"></div>
+            <div class="form-row">
+                <div class="form-group"><label>合同类型</label><select id="contract-type"><option>劳动合同</option><option>劳务合同</option><option>实习协议</option></select></div>
+                <div class="form-group"><label>状态</label><select id="contract-status"><option>有效</option><option>已到期</option><option>已解除</option></select></div>
+            </div>
+            <div class="form-row">
+                <div class="form-group"><label>开始日期</label><input type="date" id="contract-start" value="${item.startDate}"></div>
+                <div class="form-group"><label>结束日期</label><input type="date" id="contract-end" value="${item.endDate}"></div>
+            </div>
+        `,
+        onConfirm: () => {
+            const updates = {
+                employeeName: document.getElementById('contract-emp').value,
+                type: document.getElementById('contract-type').value,
+                status: document.getElementById('contract-status').value,
+                startDate: document.getElementById('contract-start').value,
+                endDate: document.getElementById('contract-end').value
+            };
+            localDB.update('contracts', id, updates);
+            state.data.contracts = localDB.get('contracts');
+            renderContracts();
+            updateStats();
+            closeModal();
+            showToast('合同已更新', 'success');
+        }
+    };
+    openEditModal(modal);
+}
+
+function openEditModal(modal) {
+    window.currentModal = modal;
+    const container = document.getElementById('modal-container');
+    container.innerHTML = `
+        <div class="modal show" id="active-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>${modal.title}</h3>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div class="modal-body">${modal.content}</div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" onclick="closeModal()">取消</button>
+                    <button class="btn btn-primary" onclick="modalConfirm()">保存</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+// ==================== 文件下载 ====================
+function downloadFile(id) {
+    const file = state.data.files.find(f => f.id === id);
+    if (!file) {
+        showToast('文件不存在', 'error');
+        return;
+    }
+    // 创建一个模拟的文本文件下载
+    const content = `文件名称: ${file.name}\n文件类型: ${file.type}\n文件大小: ${file.size}\n上传日期: ${file.date}\n说明: ${file.desc || '无'}`;
+    downloadFileContent(file.name.replace(/\.[^.]+$/, '') + '_信息.txt', content);
+    showToast('文件信息已下载', 'success');
+}
+
+// 绑定到 window
+window.editInterview = editInterview;
+window.editCandidate = editCandidate;
+window.editEmployee = editEmployee;
+window.editContract = editContract;
+window.downloadFile = downloadFile;
