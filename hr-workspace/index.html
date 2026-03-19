@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>吴梓锡的HR工作台</title>
+    <link rel="stylesheet" href="css/style.css">
+    <!-- Supabase CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+</head>
+<body>
+    <div class="layout">
+        <!-- 侧边栏 -->
+        <aside class="sidebar">
+            <div class="brand">
+                <h1>🎯 HR工作台</h1>
+                <p>高效 · 专业 · 智能</p>
+            </div>
+            
+            <div class="user-info">
+                <div class="user-avatar">吴</div>
+                <div class="user-meta">
+                    <div class="name">吴梓锡</div>
+                    <div class="role">人力资源专员</div>
+                </div>
+            </div>
+
+            <nav class="nav">
+                <div class="nav-section">
+                    <div class="nav-title">工作台</div>
+                    <div class="nav-item active" data-page="dashboard" onclick="showPage('dashboard')">
+                        <span class="icon">📊</span>
+                        <span>概览首页</span>
+                    </div>
+                    <div class="nav-item" data-page="schedule" onclick="showPage('schedule')">
+                        <span class="icon">📅</span>
+                        <span>日程安排</span>
+                        <span class="badge" id="today-events">0</span>
+                    </div>
+                    <div class="nav-item" data-page="todos" onclick="showPage('todos')">
+                        <span class="icon">✅</span>
+                        <span>待办事项</span>
+                        <span class="badge" id="pending-todos">0</span>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-title">招聘管理</div>
+                    <div class="nav-item" data-page="interviews" onclick="showPage('interviews')">
+                        <span class="icon">🎤</span>
+                        <span>面试安排</span>
+                    </div>
+                    <div class="nav-item" data-page="candidates" onclick="showPage('candidates')">
+                        <span class="icon">👥</span>
+                        <span>候选人</span>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-title">人事管理</div>
+                    <div class="nav-item" data-page="employees" onclick="showPage('employees')">
+                        <span class="icon">📝</span>
+                        <span>员工台账</span>
+                    </div>
+                    <div class="nav-item" data-page="contracts" onclick="showPage('contracts')">
+                        <span class="icon">📄</span>
+                        <span>合同台账</span>
+                    </div>
+                    <div class="nav-item" data-page="forms" onclick="showPage('forms')">
+                        <span class="icon">📋</span>
+                        <span>表单自动化</span>
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-title">资源管理</div>
+                    <div class="nav-item" data-page="files" onclick="showPage('files')">
+                        <span class="icon">📁</span>
+                        <span>文件管理</span>
+                    </div>
+                    <div class="nav-item" data-page="info" onclick="showPage('info')">
+                        <span class="icon">📢</span>
+                        <span>信息发布</span>
+                    </div>
+                </div>
+            </nav>
+
+            <div class="sidebar-footer">
+                <div>HR Workspace v1.0</div>
+                <div style="margin-top:4px;opacity:0.7;">blog.1297035851.top</div>
+            </div>
+        </aside>
+
+        <!-- 主内容区 -->
+        <main class="main">
+            <!-- 顶部栏 -->
+            <header class="header">
+                <h2 id="page-title">工作台概览</h2>
+                <div class="header-actions">
+                    <div class="search-box">
+                        <input type="text" placeholder="搜索员工、候选人、文件..." id="global-search" oninput="globalSearch(this.value)">
+                    </div>
+                    <button class="btn btn-primary" onclick="quickAction()">
+                        <span>⚡</span>
+                        <span>快捷操作</span>
+                    </button>
+                </div>
+            </header>
+
+            <!-- 内容区 -->
+            <div class="content">
+                <!-- ========== 概览首页 ========== -->
+                <div id="page-dashboard" class="page active">
+                    <!-- 统计卡片 -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon blue">👥</div>
+                            <div class="stat-info">
+                                <h3 id="stat-employees">0</h3>
+                                <p>在职员工</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon orange">🎤</div>
+                            <div class="stat-info">
+                                <h3 id="stat-interviews">0</h3>
+                                <p>今日面试</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon purple">📋</div>
+                            <div class="stat-info">
+                                <h3 id="stat-todos">0</h3>
+                                <p>待办事项</p>
+                            </div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon green">📄</div>
+                            <div class="stat-info">
+                                <h3 id="stat-contracts">0</h3>
+                                <p>合同到期提醒</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="display:grid;grid-template-columns:2fr 1fr;gap:20px;">
+                        <!-- 今日日程 -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>📅 今日日程</h3>
+                                <button class="btn btn-sm btn-secondary" onclick="showPage('schedule')">查看全部</button>
+                            </div>
+                            <div class="card-body">
+                                <div class="timeline" id="today-timeline">
+                                    <!-- 动态加载 -->
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- 快捷入口 -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>⚡ 快捷操作</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+                                    <button class="btn btn-secondary" onclick="openModal('add-interview')" style="flex-direction:column;padding:20px;gap:8px;">
+                                        <span style="font-size:24px;">🎤</span>
+                                        <span>安排面试</span>
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="openModal('add-candidate')" style="flex-direction:column;padding:20px;gap:8px;">
+                                        <span style="font-size:24px;">👤</span>
+                                        <span>录入候选人</span>
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="openModal('add-todo')" style="flex-direction:column;padding:20px;gap:8px;">
+                                        <span style="font-size:24px;">✅</span>
+                                        <span>新建待办</span>
+                                    </button>
+                                    <button class="btn btn-secondary" onclick="openModal('add-employee')" style="flex-direction:column;padding:20px;gap:8px;">
+                                        <span style="font-size:24px;">📝</span>
+                                        <span>入职登记</span>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 待办列表 -->
+                    <div class="card" style="margin-top:20px;">
+                        <div class="card-header">
+                            <h3>✅ 待办事项</h3>
+                            <button class="btn btn-sm btn-primary" onclick="openModal('add-todo')">+ 新建待办</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="todo-list" id="dashboard-todos">
+                                <!-- 动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 日程安排 ========== -->
+                <div id="page-schedule" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📅 日程安排</h3>
+                            <div style="display:flex;gap:10px;">
+                                <button class="btn btn-sm btn-secondary" onclick="changeMonth(-1)">← 上月</button>
+                                <span id="calendar-month" style="font-weight:600;padding:6px 12px;">2026年3月</span>
+                                <button class="btn btn-sm btn-secondary" onclick="changeMonth(1)">下月 →</button>
+                                <button class="btn btn-sm btn-primary" onclick="openModal('add-schedule')">+ 新建日程</button>
+                            </div>
+                        </div>
+                        <div class="card-body">
+                            <div class="calendar-grid" id="calendar-header">
+                                <div class="calendar-header">日</div>
+                                <div class="calendar-header">一</div>
+                                <div class="calendar-header">二</div>
+                                <div class="calendar-header">三</div>
+                                <div class="calendar-header">四</div>
+                                <div class="calendar-header">五</div>
+                                <div class="calendar-header">六</div>
+                            </div>
+                            <div class="calendar-grid" id="calendar-body">
+                                <!-- 动态生成 -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 日程列表 -->
+                    <div class="card" style="margin-top:20px;">
+                        <div class="card-header">
+                            <h3>📋 近期日程</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="schedule-list">
+                                <!-- 动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 待办事项 ========== -->
+                <div id="page-todos" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>✅ 待办事项管理</h3>
+                            <button class="btn btn-primary" onclick="openModal('add-todo')">+ 新建待办</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-row" style="margin-bottom:20px;">
+                                <select class="form-group" id="todo-filter-status" onchange="filterTodos()" style="margin:0;">
+                                    <option value="">全部状态</option>
+                                    <option value="pending">待处理</option>
+                                    <option value="completed">已完成</option>
+                                </select>
+                                <select class="form-group" id="todo-filter-priority" onchange="filterTodos()" style="margin:0;">
+                                    <option value="">全部优先级</option>
+                                    <option value="high">高优先级</option>
+                                    <option value="medium">中优先级</option>
+                                    <option value="low">低优先级</option>
+                                </select>
+                            </div>
+                            <div class="todo-list" id="todos-list">
+                                <!-- 动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 面试安排 ========== -->
+                <div id="page-interviews" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>🎤 面试安排</h3>
+                            <button class="btn btn-primary" onclick="openModal('add-interview')">+ 安排面试</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>候选人</th>
+                                            <th>应聘岗位</th>
+                                            <th>面试时间</th>
+                                            <th>面试官</th>
+                                            <th>状态</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="interviews-table">
+                                        <!-- 动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 候选人 ========== -->
+                <div id="page-candidates" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>👥 候选人管理</h3>
+                            <button class="btn btn-primary" onclick="openModal('add-candidate')">+ 录入候选人</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>姓名</th>
+                                            <th>应聘岗位</th>
+                                            <th>来源渠道</th>
+                                            <th>当前状态</th>
+                                            <th>录入时间</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="candidates-table">
+                                        <!-- 动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 员工台账 ========== -->
+                <div id="page-employees" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📝 员工台账</h3>
+                            <button class="btn btn-primary" onclick="openModal('add-employee')">+ 入职登记</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>工号</th>
+                                            <th>姓名</th>
+                                            <th>部门</th>
+                                            <th>职位</th>
+                                            <th>入职日期</th>
+                                            <th>状态</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="employees-table">
+                                        <!-- 动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 合同台账 ========== -->
+                <div id="page-contracts" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📄 合同台账</h3>
+                            <div class="tag tag-orange" id="expiring-count" style="margin-left:auto;margin-right:12px;">0 个即将到期</div>
+                            <button class="btn btn-primary" onclick="openModal('add-contract')">+ 新增合同</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-wrap">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>员工姓名</th>
+                                            <th>合同类型</th>
+                                            <th>开始日期</th>
+                                            <th>结束日期</th>
+                                            <th>剩余天数</th>
+                                            <th>状态</th>
+                                            <th>操作</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="contracts-table">
+                                        <!-- 动态加载 -->
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 表单自动化 ========== -->
+                <div id="page-forms" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📋 表单自动化</h3>
+                        </div>
+                        <div class="card-body">
+                            <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:20px;">
+                                <div class="card" style="cursor:pointer;" onclick="generateForm('onboarding')">
+                                    <div class="card-body" style="text-align:center;padding:30px;">
+                                        <div style="font-size:40px;margin-bottom:12px;">📝</div>
+                                        <h4 style="margin-bottom:8px;">入职登记表</h4>
+                                        <p style="font-size:13px;color:var(--text-light);">自动生成员工入职登记表</p>
+                                    </div>
+                                </div>
+                                <div class="card" style="cursor:pointer;" onclick="generateForm('resignation')">
+                                    <div class="card-body" style="text-align:center;padding:30px;">
+                                        <div style="font-size:40px;margin-bottom:12px;">📤</div>
+                                        <h4 style="margin-bottom:8px;">离职交接表</h4>
+                                        <p style="font-size:13px;color:var(--text-light);">自动生成离职交接清单</p>
+                                    </div>
+                                </div>
+                                <div class="card" style="cursor:pointer;" onclick="generateForm('attendance')">
+                                    <div class="card-body" style="text-align:center;padding:30px;">
+                                        <div style="font-size:40px;margin-bottom:12px;">📊</div>
+                                        <h4 style="margin-bottom:8px;">考勤汇总表</h4>
+                                        <p style="font-size:13px;color:var(--text-light);">生成月度考勤统计表</p>
+                                    </div>
+                                </div>
+                                <div class="card" style="cursor:pointer;" onclick="generateForm('offer')">
+                                    <div class="card-body" style="text-align:center;padding:30px;">
+                                        <div style="font-size:40px;margin-bottom:12px;">📧</div>
+                                        <h4 style="margin-bottom:8px;">Offer 录用函</h4>
+                                        <p style="font-size:13px;color:var(--text-light);">批量生成Offer录用函</p>
+                                    </div>
+                                </div>
+                                <div class="card" style="cursor:pointer;" onclick="generateForm('payslip')">
+                                    <div class="card-body" style="text-align:center;padding:30px;">
+                                        <div style="font-size:40px;margin-bottom:12px;">💰</div>
+                                        <h4 style="margin-bottom:8px;">工资条</h4>
+                                        <p style="font-size:13px;color:var(--text-light);">批量生成员工工资条</p>
+                                    </div>
+                                </div>
+                                <div class="card" style="cursor:pointer;" onclick="generateForm('evaluation')">
+                                    <div class="card-body" style="text-align:center;padding:30px;">
+                                        <div style="font-size:40px;margin-bottom:12px;">⭐</div>
+                                        <h4 style="margin-bottom:8px;">绩效评估表</h4>
+                                        <p style="font-size:13px;color:var(--text-light);">生成员工绩效评估表</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 文件管理 ========== -->
+                <div id="page-files" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📁 文件管理</h3>
+                            <button class="btn btn-primary" onclick="openModal('upload-file')">+ 上传文件</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="file-list" id="files-grid">
+                                <!-- 动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ========== 信息发布 ========== -->
+                <div id="page-info" class="page">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3>📢 信息发布</h3>
+                            <button class="btn btn-primary" onclick="openModal('add-announcement')">+ 发布信息</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="announcements-list">
+                                <!-- 动态加载 -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Toast 容器 -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <!-- 模态框容器 -->
+    <div id="modal-container"></div>
+
+    <!-- 脚本 -->
+    <script src="js/supabase-config.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
